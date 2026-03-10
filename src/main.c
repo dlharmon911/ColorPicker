@@ -232,6 +232,6 @@ void update(APP_INFO* app_info)
 void render(const APP_INFO* app_info)
 {
 	al_clear_to_color(al_map_rgb(192, 192, 255));
-	al_color_picker_draw(app_info->m_picker);
+	al_color_picker_draw(app_info->m_picker, al_map_rgba_f(1.0f, 1.0f, 1.0f, 1.0f));
 	al_flip_display();
 }

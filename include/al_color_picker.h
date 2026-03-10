@@ -1,6 +1,19 @@
 #ifndef _SHADER_COLOR_PICKER_H
 #define _SHADER_COLOR_PICKER_H
 
+/**
+ * @file al_color_picker.h
+ * @brief Header-only HSV color picker addon for Allegro 5 with embedded GLSL shaders.
+ * 
+ * This is a header-only library. To use it:
+ * 1. Include this header wherever you need the API declarations
+ * 2. In exactly ONE C/C++ file, define ALLEGRO_COLOR_PICKER_IMPLEMENTATION before including:
+ *    #define ALLEGRO_COLOR_PICKER_IMPLEMENTATION
+ *    #include "al_color_picker.h"
+ * 
+ * The shaders are embedded directly - no external shader files required.
+ */
+
 #include <allegro5/allegro5.h>
 
 #ifdef __cplusplus
@@ -14,8 +27,10 @@ typedef struct ALLEGRO_COLOR_PICKER ALLEGRO_COLOR_PICKER;
 
 /**
 * @brief Initializes the color picker addon. Must be called before using any other functions in this addon.
+*        Compiles the embedded GLSL shaders and initializes the primitives addon.
 * @param None.
 * @return true if the addon was initialized successfully, false otherwise.
+* @note The shaders are embedded directly in the header files - no external files required.
 */
 bool al_init_color_picker();
 
@@ -190,9 +205,10 @@ void al_color_picker_get_size(const ALLEGRO_COLOR_PICKER* picker, float* size);
 /**
 * @brief Draws the color picker at its current position.
 * @param picker A pointer to the color picker instance.
+* @param background The background color to use when drawing the picker.
 * @return None.
 */
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker);
+void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
 
 /**
 * @brief Handles a mouse grab event on the color picker wheel or triangle.
@@ -572,7 +588,7 @@ static void _al_color_picker_reset_points(ALLEGRO_COLOR_PICKER* picker)
 	}
 }
 
-static void _al_color_picker_draw_hsv(const ALLEGRO_COLOR_PICKER* picker)
+static void _al_color_picker_draw_hsv(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background)
 {
 	ALLEGRO_SHADER* current_shader = al_get_current_shader();
 	ALLEGRO_COLOR color = (ALLEGRO_COLOR){ 0.0f, 0.0f, 0.0f, 1.0f };
@@ -595,14 +611,14 @@ static void _al_color_picker_draw_hsv(const ALLEGRO_COLOR_PICKER* picker)
 	al_set_shader_float_vector("u_resolution", 2, (float[]) { picker->m_size, picker->m_size }, 1);
 	al_set_shader_float_vector("u_hsv", 3, (float[]) { picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value }, 1);
 
-	al_draw_filled_rectangle(picker->m_pos.m_x, picker->m_pos.m_y, picker->m_pos.m_x + picker->m_size - 1.0f, picker->m_pos.m_y + picker->m_size - 1.0f, al_map_rgba_f(1.0f, 1.0f, 1.0f, 1.0f));
+	al_draw_filled_rectangle(picker->m_pos.m_x, picker->m_pos.m_y, picker->m_pos.m_x + picker->m_size - 1.0f, picker->m_pos.m_y + picker->m_size - 1.0f, background);
 
 	al_use_shader(current_shader);
 }
 
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker)
+void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background)
 {
-	_al_color_picker_draw_hsv(picker);
+	_al_color_picker_draw_hsv(picker, background);
 }
 
 void al_color_picker_set_hsv(ALLEGRO_COLOR_PICKER* picker, float hue, float saturation, float value)

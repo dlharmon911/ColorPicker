@@ -2,6 +2,8 @@
 
 Complete API reference for the Allegro Color Picker addon.
 
+**Note:** This is a header-only library with embedded GLSL shaders. Simply include `picker.h` and define `ALLEGRO_COLOR_PICKER_IMPLEMENTATION` in one C/C++ file.
+
 ## Table of Contents
 
 - [Types](#types)
@@ -692,5 +694,6 @@ The color picker uses the HSV (Hue, Saturation, Value) color space:
 
 - All functions are safe to call with `NULL` pointers (they will return early)
 - The color picker requires OpenGL 3.3+ and GLSL shader support
-- Shader files must be present in `shaders/` directory relative to the executable
+- **Shaders are embedded directly in the header files** - no external files required
 - The picker includes a 40-pixel padding around its boundaries for the background color display
+- This is a header-only library; define `ALLEGRO_COLOR_PICKER_IMPLEMENTATION` in exactly one C/C++ file before including `picker.h`

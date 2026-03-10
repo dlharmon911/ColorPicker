@@ -10,6 +10,7 @@ A shader-based HSV color picker addon for Allegro 5 that provides an intuitive c
 - **Multiple Color Formats**: Support for RGB, HSV, and ALLEGRO_COLOR
 - **Shader-Based Rendering**: Utilizes OpenGL shaders for smooth color gradients
 - **Interactive**: Click and drag support for both the wheel and triangle
+- **Header-Only Library**: Shaders are embedded directly - no external files needed
 
 ## Requirements
 
@@ -21,14 +22,25 @@ A shader-based HSV color picker addon for Allegro 5 that provides an intuitive c
 
 ## Installation
 
-1. Include the header in your project:
+This is a **header-only library** with embedded GLSL shaders.
+
+1. Copy the header files to your project:
+   - `include/al_color_picker.h`
+   - `include/shader_vertex.h`
+   - `include/shader_pixel.h`
+
+2. In your code, define the implementation in **one** C/C++ file before including:
+```c
+#define ALLEGRO_COLOR_PICKER_IMPLEMENTATION
+#include "al_color_picker.h"
+```
+
+3. In other files, simply include without the define:
 ```c
 #include "al_color_picker.h"
 ```
 
-2. Initialize the required Allegro addons before using the color picker.
-
-3. Add the 3 event functions to your event system.
+**No external shader files required!** The shaders are embedded as string constants.
 
 ## Quick Start
 
@@ -176,15 +188,6 @@ al_color_picker_draw(picker);
 ```c
 al_destroy_color_picker(picker);
 al_shutdown_color_picker();
-```
-
-## Header-Only Library Mode
-
-This addon supports header-only library mode. Define `ALLEGRO_COLOR_PICKER_IMPLEMENTATION` in **one** C/C++ file before including the header:
-
-```c
-#define ALLEGRO_COLOR_PICKER_IMPLEMENTATION
-#include "al_color_picker.h"
 ```
 
 ## Architecture
