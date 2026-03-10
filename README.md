@@ -26,11 +26,9 @@ A shader-based HSV color picker addon for Allegro 5 that provides an intuitive c
 #include "al_color_picker.h"
 ```
 
-2. Make sure the shader files are in the `shaders/` directory:
-   - `shaders/shader_vertex.glsl`
-   - `shaders/shader_pixel.glsl`
+2. Initialize the required Allegro addons before using the color picker.
 
-3. Initialize the required Allegro addons before using the color picker.
+3. Add the 3 event functions to your event system.
 
 ## Quick Start
 
