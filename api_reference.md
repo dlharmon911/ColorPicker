@@ -493,7 +493,7 @@ None.
 ### al_color_picker_draw
 
 ```c
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker);
+void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
 ```
 
 **Description:**  
@@ -501,6 +501,7 @@ Draws the color picker at its current position using the shader-based rendering 
 
 **Parameters:**
 - `picker` - A pointer to the color picker instance
+- `background` - The background color to draw behind the picker
 
 **Returns:**  
 None.
@@ -640,7 +641,7 @@ while (running) {
     
     // Render
     al_clear_to_color(al_map_rgb(40, 40, 40));
-    al_color_picker_draw(picker);
+    al_color_picker_draw(picker, al_map_rgb(255, 255, 255));
     
     // Show the selected color
     al_draw_filled_circle(700, 50, 30, selected_color);

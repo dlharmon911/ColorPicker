@@ -180,7 +180,7 @@ al_color_picker_release_wheel(picker);
 ### Rendering
 
 ```c
-al_color_picker_draw(picker);
+al_color_picker_draw(picker, ALLEGRO_COLOR background);
 ```
 
 ### Cleanup
