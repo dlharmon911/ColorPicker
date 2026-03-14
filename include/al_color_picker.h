@@ -203,12 +203,20 @@ void al_color_picker_set_size(ALLEGRO_COLOR_PICKER* picker, float size);
 void al_color_picker_get_size(const ALLEGRO_COLOR_PICKER* picker, float* size);
 
 /**
+* @brief Sets the thickness of the color wheel in the picker.
+* @param picker A pointer to the color picker instance.
+* @param thickness The thickness of the color wheel.
+* @return None.
+*/
+void al_color_picker_set_wheel_thickness(ALLEGRO_COLOR_PICKER* picker, float thickness);
+
+/**
 * @brief Draws the color picker at its current position.
 * @param picker A pointer to the color picker instance.
 * @param background The background color to use when drawing the picker.
 * @return None.
 */
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
+void al_draw_color_picker(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
 
 /**
 * @brief Handles a mouse grab event on the color picker wheel or triangle.
@@ -218,7 +226,7 @@ void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR back
 * @param color A pointer to store the resulting color, or NULL.
 * @return true if the grab was successful (inside the picker), false otherwise.
 */
-bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
+bool al_grab_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
 
 /**
 * @brief Handles a mouse move event while grabbing the color picker wheel.
@@ -228,14 +236,14 @@ bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 * @param color A pointer to store the resulting color, or NULL.
 * @return None.
 */
-void al_color_picker_move_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
+void al_drag_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
 
 /**
 * @brief Releases the grab on the color picker wheel.
 * @param picker A pointer to the color picker instance.
 * @return None.
 */
-void al_color_picker_release_wheel(ALLEGRO_COLOR_PICKER* picker);
+void al_release_color_picker(ALLEGRO_COLOR_PICKER* picker);
 
 #ifdef __cplusplus
 }
@@ -247,8 +255,6 @@ void al_color_picker_release_wheel(ALLEGRO_COLOR_PICKER* picker);
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_color.h>
 #include <math.h>
-#include "al_color_picker.h"
-
 
 static const char* _ALLEGRO_VERTEX_SHADER_SOURCE =
 "#version 330 core\n"
@@ -260,8 +266,8 @@ static const char* _ALLEGRO_VERTEX_SHADER_SOURCE =
 "\n"
 "void main()\n"
 "{\n"
-"    varying_color = al_color;\n"
-"    gl_Position = al_projview_matrix * al_pos;\n"
+"	varying_color = al_color;\n"
+"	gl_Position = al_projview_matrix * al_pos;\n"
 "}\n";
 
 static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
@@ -275,17 +281,7 @@ static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
 "uniform vec2 u_position;\n"
 "uniform vec2 u_resolution;\n"
 "uniform vec3 u_hsv;\n"
-"\n"
-"vec3 rgb_to_hsv(vec3 c)\n"
-"{\n"
-"    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);\n"
-"    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));\n"
-"    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));\n"
-"\n"
-"    float d = q.x - min(q.w, q.y);\n"
-"    float e = 1.0e-10;\n"
-"    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);\n"
-"}\n"
+"uniform float u_thickness;\n"
 "\n"
 "vec3 hsv_to_rgb(vec3 c)\n"
 "{\n"
@@ -294,24 +290,9 @@ static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
 "    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);\n"
 "}\n"
 "\n"
-"vec3 hsl_to_rgb(float h, float s, float l) \n"
-"{\n"
-"    // 1. Calculate the base hue colors using a 6-segment wheel\n"
-"    vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);\n"
-"    \n"
-"    // 2. Adjust for saturation and lightness\n"
-"    // This formula blends the pure hue with the grayscale based on L and S\n"
-"    return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));\n"
-"}\n"
-"\n"
 "float rad_to_deg(float rad) \n"
 "{\n"
 "    return rad * 180.0 / 3.14159265;\n"
-"}\n"
-"\n"
-"float deg_to_rad(float deg) \n"
-"{\n"
-"    return deg * 3.14159265 / 180.0;\n"
 "}\n"
 "\n"
 "vec3 color_wheel(float angle)\n"
@@ -348,8 +329,6 @@ static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
 "void main()\n"
 "{\n"
 "    vec4 color = varying_color;\n"
-"    float innerRadius = 0.8;\n"
-"    float outerRadius = 1.0;\n"
 "    float edgeWidth = 0.01; // Smoothness factor\n"
 "    vec2 fragCoord = gl_FragCoord.xy - u_position;\n"
 "    vec2 uv = fragCoord.xy / u_resolution.xy;\n"
@@ -358,43 +337,38 @@ static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
 "    float hue_angle = u_hsv.x * 3.14159265 / 180.0;\n"
 "    float d = length(position);\n"
 "\n"
-"    if (d > outerRadius) \n"
+"    if (d > 1.0) \n"
 "    {\n"
 "           gl_FragColor = varying_color;\n"
 "           return;\n"
 "    } \n"
-"    else if (d >= innerRadius)\n"
+"    else if (d >= u_thickness)\n"
 "    {   \n"
-"        float ring = smoothstep(innerRadius - edgeWidth, innerRadius, d) - \n"
-"                     smoothstep(outerRadius, outerRadius + edgeWidth, d);\n"
+"        float ring = smoothstep(u_thickness - edgeWidth, u_thickness, d) - \n"
+"                     smoothstep(1.0, 1.0 + edgeWidth, d);\n"
 "\n"
 "        float a1 = rad_to_deg(angle);\n"
 "        float a2 = rad_to_deg(hue_angle);\n"
 "\n"
 "        if (abs(a1 - a2) < 0.5) \n"
 "        {\n"
-"            if (abs(a1 - a2) < 0.25) \n"
-"            {\n"
-"                gl_FragColor = vec4(vec3(1.0), 1.0);\n"
-"            } \n"
-"            else \n"
-"            {\n"
-"                gl_FragColor = vec4(vec3(0.0), 1.0);\n"
-"            }\n"
+"            gl_FragColor = varying_color;\n"
+"            return;\n"
 "        }\n"
 "        else\n"
 "        {\n"
 "            gl_FragColor = vec4(color_wheel(angle / (2.0 * 3.14159265)) * ring, 1.0);\n"
+"        return;\n"
 "        }\n"
 "    }\n"
 "    else\n"
 "    {\n"
 "        vec2 t = coordinates(position, u_p1, u_p2, u_p3);\n"
+"        bool inside = true;\n"
 "\n"
 "        if (t.x < 0.0 || t.y < 0.0 || t.x > 1.0 || t.y > 1.0) \n"
 "        {\n"
-"           gl_FragColor = varying_color;\n"
-"           return;\n"
+"           inside = false;\n"
 "        }       \n"
 "\n"
 "        // Get the position of the selected saturation and value\n"
@@ -406,28 +380,41 @@ static const char* _ALLEGRO_PIXEL_SHADER_SOURCE =
 "        float distToIndicator = length(position - indicatorPos);\n"
 "\n"
 "        // Draw black circle at the indicator position\n"
-"        float circleInnerRadius = 0.035;\n"
+"        float circleInnerRadius = 0.04;\n"
 "        float circleOuterRadius = 0.05;\n"
 "\n"
-"        if (distToIndicator < circleOuterRadius) \n"
+"        if (inside)\n"
 "        {\n"
-"            if (distToIndicator >= circleInnerRadius) \n"
-"            {\n"
-"                gl_FragColor = vec4(1.0);\n"
-"                return;\n"
-"            }\n"
+"            vec3 hsv = vec3(hue_angle / (2.0 * 3.14159265), t.y, t.x);\n"
+"            vec3 rgb = hsv_to_rgb(hsv);\n"
+"\n"
+"            gl_FragColor = vec4(rgb, 1.0);\n"
+"        }\n"
+"        else\n"
+"        {\n"
+"            gl_FragColor = varying_color;\n"
 "        }\n"
 "\n"
-"        vec3 hsv = vec3(hue_angle / (2.0 * 3.14159265), t.y, t.x);\n"
-"        vec3 rgb = hsv_to_rgb(hsv);\n"
-"\n"
-"        gl_FragColor = vec4(rgb, 1.0);\n"
+"        if (distToIndicator < circleOuterRadius && distToIndicator >= circleInnerRadius)\n"
+"        {\n"
+"            if (inside) \n"
+"            {\n"
+"                gl_FragColor = vec4(vec3(1.0), 1.0);\n"
+"            } \n"
+"            else \n"
+"            {\n"
+"                gl_FragColor = vec4(vec3(0.0), 1.0);\n"
+"            }\n"
+"            return;\n"
+"        }\n"
 "    }\n"
 "}\n";
 
-static const float _ALLEGRO_PI_2 = 2.0f * (float)ALLEGRO_PI;
-static const float _ALLEGRO_PICKER_PADDING = 40.0f;
 static const float _ALLEGRO_ANGLE_STEP = 2.0f * (float)ALLEGRO_PI / 3.0f;
+static const float _ALLEGRO_PICKER_MAX_THICKNESS = 0.9f;
+static const float _ALLEGRO_PICKER_MIN_THICKNESS = 0.7f;
+static const float _ALLEGRO_PICKER_DEFAULT_THICKNESS = 0.8f;
+static const ALLEGRO_COLOR _ALLEGRO_PICKER_DEFAULT_COLOR = { 0.4f, 0.5f, 0.2f, 1.0f };
 
 enum ALLEGRO_PICKER_STATE
 {
@@ -456,9 +443,42 @@ typedef struct ALLEGRO_COLOR_PICKER
 	_ALLEGRO_VEC2 m_pos;
 	float m_size;
 	int32_t m_state;
+	float m_thickness;
 } ALLEGRO_COLOR_PICKER;
 
 static ALLEGRO_SHADER* _shader = NULL;
+
+static int32_t _al_build_shader(ALLEGRO_SHADER** shader)
+{
+	if (!shader)
+	{
+		return -1;
+	}
+
+	(*shader) = al_create_shader(ALLEGRO_SHADER_GLSL);
+
+	if (!(*shader))
+	{
+		return -1;
+	}
+
+	if (!al_attach_shader_source((*shader), ALLEGRO_VERTEX_SHADER, _ALLEGRO_VERTEX_SHADER_SOURCE))
+	{
+		return -1;
+	}
+
+	if (!al_attach_shader_source((*shader), ALLEGRO_PIXEL_SHADER, _ALLEGRO_PIXEL_SHADER_SOURCE))
+	{
+		return -1;
+	}
+
+	if (!al_build_shader((*shader)))
+	{
+		return -1;
+	}
+
+	return 0;
+}
 
 static int32_t _al_init_picker_addon()
 {
@@ -477,25 +497,14 @@ static int32_t _al_init_picker_addon()
 		return -1;
 	}
 
-	_shader = al_create_shader(ALLEGRO_SHADER_GLSL);
-
-	if (!_shader)
+	if (_al_build_shader(&_shader) != 0)
 	{
-		return -1;
-	}
+		if (_shader)
+		{
+			al_destroy_shader(_shader);
+			_shader = NULL;
+		}
 
-	if (!al_attach_shader_source(_shader, ALLEGRO_VERTEX_SHADER, _ALLEGRO_VERTEX_SHADER_SOURCE))
-	{
-		return -1;
-	}
-
-	if (!al_attach_shader_source(_shader, ALLEGRO_PIXEL_SHADER, _ALLEGRO_PIXEL_SHADER_SOURCE))
-	{
-		return -1;
-	}
-
-	if (!al_build_shader(_shader))
-	{
 		return -1;
 	}
 
@@ -525,6 +534,26 @@ void al_shutdown_color_picker()
 		al_destroy_shader(_shader);
 		_shader = NULL;
 	}
+}
+
+static float _al_rad_to_deg(float radians)
+{
+	return radians * 180.0f / (float)ALLEGRO_PI;
+}
+
+static float _al_deg_to_rad(float degrees)
+{
+	return degrees * (float)ALLEGRO_PI / 180.0f;
+}
+
+static float _al_mapper(float value)
+{
+	return value * 2.0f - 1.0f;
+}
+
+static float _al_clamp(float value, float min, float max)
+{
+	return fmaxf(min, fminf(max, value));
 }
 
 static void _al_color_coordinates(const _ALLEGRO_VEC2* p, const _ALLEGRO_VEC2* p1, const _ALLEGRO_VEC2* p2, const _ALLEGRO_VEC2* p3, _ALLEGRO_VEC2* out)
@@ -557,8 +586,9 @@ ALLEGRO_COLOR_PICKER* al_create_color_picker(float x, float y, float size)
 	picker->m_pos.m_y = y;
 	picker->m_size = size;
 	picker->m_state = ALLEGRO_PICKER_IDLE;
+	picker->m_thickness = _ALLEGRO_PICKER_DEFAULT_THICKNESS;
 
-	ALLEGRO_COLOR color = { 0.4f, 0.5f, 0.2f, 1.0f };
+	ALLEGRO_COLOR color = _ALLEGRO_PICKER_DEFAULT_COLOR;
 
 	al_color_picker_set_rgb(picker, color.r, color.g, color.b);
 
@@ -579,46 +609,52 @@ static void _al_color_picker_reset_points(ALLEGRO_COLOR_PICKER* picker)
 	{
 		return;
 	}
-	float angle = picker->m_hsv.m_hue * _ALLEGRO_PI_2 / 360.0f;
+
+	float angle = _al_deg_to_rad(picker->m_hsv.m_hue);
+
 	for (size_t i = 0; i < 3; ++i)
 	{
-		picker->m_points[i].m_x = cosf(angle) * 0.8f;
-		picker->m_points[i].m_y = sinf(angle) * 0.8f;
+		picker->m_points[i].m_x = cosf(angle) * picker->m_thickness;
+		picker->m_points[i].m_y = sinf(angle) * picker->m_thickness;
 		angle += _ALLEGRO_ANGLE_STEP;
 	}
 }
 
-static void _al_color_picker_draw_hsv(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background)
+void al_draw_color_picker(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background)
 {
 	ALLEGRO_SHADER* current_shader = al_get_current_shader();
-	ALLEGRO_COLOR color = (ALLEGRO_COLOR){ 0.0f, 0.0f, 0.0f, 1.0f };
 
 	if (!picker || !_shader)
 	{
 		return;
 	}
 
-	al_use_shader(NULL);
-	al_color_hsv_to_rgb(picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value, &color.r, &color.g, &color.b);
-	al_draw_filled_rectangle(picker->m_pos.m_x - _ALLEGRO_PICKER_PADDING, picker->m_pos.m_y - _ALLEGRO_PICKER_PADDING, picker->m_pos.m_x + picker->m_size + _ALLEGRO_PICKER_PADDING - 1.0f, picker->m_pos.m_y + picker->m_size + _ALLEGRO_PICKER_PADDING - 1.0f, color);
+	ALLEGRO_TRANSFORM current_transform;
+	ALLEGRO_TRANSFORM text_transform;
+
+	al_copy_transform(&current_transform, al_get_current_transform());
+
+	al_identity_transform(&text_transform);
+	al_translate_transform(&text_transform, picker->m_pos.m_x, picker->m_pos.m_y);
+	al_use_transform(&text_transform);
+
+	ALLEGRO_BITMAP* target = al_get_target_bitmap();
+	float target_h = (float)al_get_bitmap_height(target);
 
 	al_use_shader(_shader);
 
 	al_set_shader_float_vector("u_p1", 2, (float[]) { picker->m_points[1].m_x, picker->m_points[1].m_y }, 1);
 	al_set_shader_float_vector("u_p2", 2, (float[]) { picker->m_points[2].m_x, picker->m_points[2].m_y }, 1);
 	al_set_shader_float_vector("u_p3", 2, (float[]) { picker->m_points[0].m_x, picker->m_points[0].m_y }, 1);
-	al_set_shader_float_vector("u_position", 2, (float[]) { picker->m_pos.m_x, picker->m_pos.m_y }, 1);
+	al_set_shader_float_vector("u_position", 2, (float[]) { picker->m_pos.m_x, target_h - (picker->m_pos.m_y + picker->m_size) }, 1);
 	al_set_shader_float_vector("u_resolution", 2, (float[]) { picker->m_size, picker->m_size }, 1);
 	al_set_shader_float_vector("u_hsv", 3, (float[]) { picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value }, 1);
+	al_set_shader_float("u_thickness", picker->m_thickness);
 
-	al_draw_filled_rectangle(picker->m_pos.m_x, picker->m_pos.m_y, picker->m_pos.m_x + picker->m_size - 1.0f, picker->m_pos.m_y + picker->m_size - 1.0f, background);
+	al_draw_filled_rectangle(0.0f, 0.0f, picker->m_size - 1.0f, picker->m_size - 1.0f, background);
 
 	al_use_shader(current_shader);
-}
-
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background)
-{
-	_al_color_picker_draw_hsv(picker, background);
+	al_use_transform(&current_transform);
 }
 
 void al_color_picker_set_hsv(ALLEGRO_COLOR_PICKER* picker, float hue, float saturation, float value)
@@ -627,6 +663,7 @@ void al_color_picker_set_hsv(ALLEGRO_COLOR_PICKER* picker, float hue, float satu
 	{
 		return;
 	}
+
 	picker->m_hsv.m_hue = hue;
 	picker->m_hsv.m_saturation = saturation;
 	picker->m_hsv.m_value = value;
@@ -646,10 +683,7 @@ void al_color_picker_set_rgb(ALLEGRO_COLOR_PICKER* picker, float red, float gree
 	float value = 0.0f;
 
 	al_color_rgb_to_hsv(red, green, blue, &hue, &saturation, &value);
-
 	al_color_picker_set_hsv(picker, hue, saturation, value);
-
-	_al_color_picker_reset_points(picker);
 }
 
 
@@ -679,6 +713,7 @@ void al_color_picker_get_color(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR
 	{
 		return;
 	}
+
 	al_color_hsv_to_rgb(picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value, &color->r, &color->g, &color->b);
 	color->a = 1.0f;
 }
@@ -704,7 +739,6 @@ void al_color_picker_set_hue(ALLEGRO_COLOR_PICKER* picker, float hue)
 	}
 
 	picker->m_hsv.m_hue = hue;
-
 	_al_color_picker_reset_points(picker);
 }
 
@@ -714,6 +748,7 @@ void al_color_picker_get_hue(const ALLEGRO_COLOR_PICKER* picker, float* hue)
 	{
 		return;
 	}
+
 	*hue = picker->m_hsv.m_hue;
 }
 
@@ -734,6 +769,7 @@ void al_color_picker_get_saturation(const ALLEGRO_COLOR_PICKER* picker, float* s
 	{
 		return;
 	}
+
 	*saturation = picker->m_hsv.m_saturation;
 }
 
@@ -785,6 +821,7 @@ void al_color_picker_set_size(ALLEGRO_COLOR_PICKER* picker, float size)
 	{
 		return;
 	}
+
 	picker->m_size = size;
 }
 
@@ -794,10 +831,22 @@ void al_color_picker_get_size(const ALLEGRO_COLOR_PICKER* picker, float* size)
 	{
 		return;
 	}
+
 	*size = picker->m_size;
 }
 
-bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color)
+void al_color_picker_set_wheel_thickness(ALLEGRO_COLOR_PICKER* picker, float thickness)
+{
+	if (!picker)
+	{
+		return;
+	}
+
+	picker->m_thickness = _al_clamp(thickness, _ALLEGRO_PICKER_MIN_THICKNESS, _ALLEGRO_PICKER_MAX_THICKNESS);
+	_al_color_picker_reset_points(picker);
+}
+
+bool al_grab_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color)
 {
 	bool rv = false;
 
@@ -817,9 +866,9 @@ bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 	{
 		rv = false;
 	}
-	else if (distance > 0.8f && distance <= 1.0f)
+	else if (distance > picker->m_thickness && distance <= 1.0f)
 	{
-		picker->m_hsv.m_hue = atan2f(cy - py, px - cx) * 360.0f / _ALLEGRO_PI_2;
+		picker->m_hsv.m_hue = _al_rad_to_deg(atan2f(cy - py, px - cx));
 		picker->m_state = ALLEGRO_PICKER_GRABBING_WHEEL;
 
 		al_color_picker_set_hsv(picker, picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value);
@@ -833,10 +882,7 @@ bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 	}
 	else
 	{
-		px = (px - picker->m_pos.m_x) / picker->m_size * 2.0f - 1.0f;
-		py = (1.0f - (py - picker->m_pos.m_y) / picker->m_size) * 2.0f - 1.0f;
-
-		_ALLEGRO_VEC2 mouse_pos = { px, py };
+		_ALLEGRO_VEC2 mouse_pos = { _al_mapper((x - picker->m_pos.m_x) / picker->m_size), _al_mapper(1.0f - (y - picker->m_pos.m_y) / picker->m_size) };
 		_ALLEGRO_VEC2 out = { 0.0f, 0.0f };
 
 		_al_color_coordinates(&mouse_pos, &picker->m_points[1], &picker->m_points[2], &picker->m_points[0], &out);
@@ -851,6 +897,7 @@ bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 			{
 				al_color_hsv_to_rgb(picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value, &color->r, &color->g, &color->b);
 			}
+
 			rv = true;
 		}
 	}
@@ -858,35 +905,29 @@ bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 	return rv;
 }
 
-void al_color_picker_move_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color)
+void al_drag_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color)
 {
 	if (!picker || !_shader)
 	{
 		return;
 	}
 
-	float px = x;
-	float py = y;
 	float cx = (picker->m_pos.m_x + picker->m_size * 0.5f);
 	float cy = (picker->m_pos.m_y + picker->m_size * 0.5f);
 
 	if (picker->m_state == ALLEGRO_PICKER_GRABBING_WHEEL)
 	{
-		picker->m_hsv.m_hue = atan2f(cy - py, px - cx) * 360.0f / _ALLEGRO_PI_2;
+		picker->m_hsv.m_hue = _al_rad_to_deg(atan2f(cy - y, x - cx));
 	}
-
 	else if (picker->m_state == ALLEGRO_PICKER_GRABBING_TRIANGLE)
 	{
-		px = (px - picker->m_pos.m_x) / picker->m_size * 2.0f - 1.0f;
-		py = (1.0f - (py - picker->m_pos.m_y) / picker->m_size) * 2.0f - 1.0f;
-		_ALLEGRO_VEC2 mouse_pos = { px, py };
+		_ALLEGRO_VEC2 mouse_pos = { _al_mapper((x - picker->m_pos.m_x) / picker->m_size), _al_mapper(1.0f - (y - picker->m_pos.m_y) / picker->m_size) };
 		_ALLEGRO_VEC2 out = { 0.0f, 0.0f };
+
 		_al_color_coordinates(&mouse_pos, &picker->m_points[1], &picker->m_points[2], &picker->m_points[0], &out);
-		if (out.m_x >= 0.0f && out.m_x <= 1.0f && out.m_y >= 0.0f && out.m_y <= 1.0f)
-		{
-			picker->m_hsv.m_saturation = out.m_y;
-			picker->m_hsv.m_value = out.m_x;
-		}
+
+		picker->m_hsv.m_saturation = _al_clamp(out.m_y, 0.0f, 1.0f);
+		picker->m_hsv.m_value = _al_clamp(out.m_x, 0.0f, 1.0f);
 	}
 
 	al_color_picker_set_hsv(picker, picker->m_hsv.m_hue, picker->m_hsv.m_saturation, picker->m_hsv.m_value);
@@ -897,7 +938,7 @@ void al_color_picker_move_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, 
 	}
 }
 
-void al_color_picker_release_wheel(ALLEGRO_COLOR_PICKER* picker)
+void al_release_color_picker(ALLEGRO_COLOR_PICKER* picker)
 {
 	if (!picker || !_shader)
 	{

@@ -488,12 +488,30 @@ None.
 
 ---
 
-## Rendering
-
-### al_color_picker_draw
+### al_color_picker_set_wheel_thickness
 
 ```c
-void al_color_picker_draw(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
+void al_color_picker_set_wheel_thickness(ALLEGRO_COLOR_PICKER* picker, float thickness);
+```
+
+**Description:**
+Sets the thickness of the hue wheel (the outer ring). The thickness is a percentage of the overall size (min: 0.6, max: 0.9).
+
+**Parameters:*
+- `picker` - A pointer to the color picker instance
+- `thickness` - The thickness of the hue wheel (0.6 to 0.9)
+
+**Returns:**
+None.
+
+---
+
+## Rendering
+
+### al_draw_color_picker
+
+```c
+void al_draw_color_picker(const ALLEGRO_COLOR_PICKER* picker, ALLEGRO_COLOR background);
 ```
 
 **Description:**  
@@ -514,10 +532,10 @@ None.
 
 ## Mouse Interaction
 
-### al_color_picker_grab_wheel
+### al_grab_color_picker
 
 ```c
-bool al_color_picker_grab_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
+bool al_grab_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
 ```
 
 **Description:**  
@@ -542,7 +560,7 @@ Handles a mouse grab event on the color picker. Detects whether the click is on 
 ```c
 if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) {
     ALLEGRO_COLOR color;
-    if (al_color_picker_grab_wheel(picker, event.mouse.x, event.mouse.y, &color)) {
+    if (al_grab_color_picker(picker, event.mouse.x, event.mouse.y, &color)) {
         // User clicked inside the picker
         dragging = true;
     }
@@ -551,10 +569,10 @@ if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) {
 
 ---
 
-### al_color_picker_move_wheel
+### al_drag_color_picker
 
 ```c
-void al_color_picker_move_wheel(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
+void al_drag_color_picker(ALLEGRO_COLOR_PICKER* picker, float x, float y, ALLEGRO_COLOR* color);
 ```
 
 **Description:**  
@@ -578,17 +596,17 @@ None.
 ```c
 if (event.type == ALLEGRO_EVENT_MOUSE_AXES && dragging) {
     ALLEGRO_COLOR color;
-    al_color_picker_move_wheel(picker, event.mouse.x, event.mouse.y, &color);
+    al_drag_color_picker(picker, event.mouse.x, event.mouse.y, &color);
     // Use the updated color
 }
 ```
 
 ---
 
-### al_color_picker_release_wheel
+### al_release_color_picker
 
 ```c
-void al_color_picker_release_wheel(ALLEGRO_COLOR_PICKER* picker);
+void al_release_color_picker(ALLEGRO_COLOR_PICKER* picker);
 ```
 
 **Description:**  
@@ -603,7 +621,7 @@ None.
 **Example:**
 ```c
 if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP) {
-    al_color_picker_release_wheel(picker);
+    al_release_color_picker(picker);
     dragging = false;
 }
 ```
@@ -622,26 +640,26 @@ while (running) {
     
     switch (event.type) {
         case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
-            if (al_color_picker_grab_wheel(picker, event.mouse.x, event.mouse.y, &selected_color)) {
+            if (al_grab_color_picker(picker, event.mouse.x, event.mouse.y, &selected_color)) {
                 dragging = true;
             }
             break;
             
         case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
-            al_color_picker_release_wheel(picker);
+            al_release_color_picker(picker);
             dragging = false;
             break;
             
         case ALLEGRO_EVENT_MOUSE_AXES:
             if (dragging) {
-                al_color_picker_move_wheel(picker, event.mouse.x, event.mouse.y, &selected_color);
+                al_drag_color_picker(picker, event.mouse.x, event.mouse.y, &selected_color);
             }
             break;
     }
     
     // Render
     al_clear_to_color(al_map_rgb(40, 40, 40));
-    al_color_picker_draw(picker, al_map_rgb(255, 255, 255));
+    al_draw_color_picker(picker, al_map_rgb(255, 255, 255));
     
     // Show the selected color
     al_draw_filled_circle(700, 50, 30, selected_color);

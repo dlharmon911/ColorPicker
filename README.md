@@ -26,8 +26,6 @@ This is a **header-only library** with embedded GLSL shaders.
 
 1. Copy the header files to your project:
    - `include/al_color_picker.h`
-   - `include/shader_vertex.h`
-   - `include/shader_pixel.h`
 
 2. In your code, define the implementation in **one** C/C++ file before including:
 ```c
@@ -88,24 +86,24 @@ int main(int argc, char** argv)
         }
         else if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN)
         {
-            if (al_color_picker_grab_wheel(picker, event.mouse.x, event.mouse.y, &selected_color))
+            if (al_grab_color_picker(picker, event.mouse.x, event.mouse.y, &selected_color))
             {
                 dragging = true;
             }
         }
         else if (event.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP)
         {
-            al_color_picker_release_wheel(picker);
+            al_release_color_picker(picker);
             dragging = false;
         }
         else if (event.type == ALLEGRO_EVENT_MOUSE_AXES && dragging)
         {
-            al_color_picker_move_wheel(picker, event.mouse.x, event.mouse.y, &selected_color);
+            al_drag_color_picker(picker, event.mouse.x, event.mouse.y, &selected_color);
         }
         
         // Draw
         al_clear_to_color(al_map_rgb(50, 50, 50));
-        al_color_picker_draw(picker);
+        al_draw_color_picker(picker);
         al_flip_display();
     }
     
@@ -165,22 +163,22 @@ al_color_picker_get_color(picker, &color);
 
 ```c
 // On mouse down
-if (al_color_picker_grab_wheel(picker, mouse_x, mouse_y, &color))
+if (al_grab_color_picker(picker, mouse_x, mouse_y, &color))
 {
     // Color was successfully grabbed
 }
 
 // While dragging
-al_color_picker_move_wheel(picker, mouse_x, mouse_y, &color);
+al_drag_color_picker(picker, mouse_x, mouse_y, &color);
 
 // On mouse up
-al_color_picker_release_wheel(picker);
+al_release_color_picker(picker);
 ```
 
 ### Rendering
 
 ```c
-al_color_picker_draw(picker, ALLEGRO_COLOR background);
+al_draw_color_picker(picker, ALLEGRO_COLOR background);
 ```
 
 ### Cleanup
